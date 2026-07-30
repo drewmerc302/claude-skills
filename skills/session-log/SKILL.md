@@ -1,6 +1,6 @@
 ---
 name: session-log
-description: Save an Obsidian session log at conversation end. Use at end of every session — automatically, without being asked.
+description: Save an Obsidian session log at conversation end, and optionally create topic notes and add WikiLinks to related notes across the vault. Writes without asking. Use at end of every session — automatically, without being asked.
 ---
 
 # Session Log
@@ -8,6 +8,20 @@ description: Save an Obsidian session log at conversation end. Use at end of eve
 Writes a structured session log into an Obsidian vault so work survives the
 context window. Paired with a `Stop` hook that refuses to end a substantive
 session until the log exists.
+
+> **Scope of writes — read before installing.** This skill writes without
+> prompting, by design: a log you have to approve is a log that doesn't get
+> written when context runs out. Two levels of blast radius:
+>
+> - **Always:** creates one new file per session under `$CLAUDE_VAULT/Sessions/`.
+>   Additive only; never edits existing notes.
+> - **Only with your explicit approval:** the topic-note pass creates notes in
+>   `$CLAUDE_VAULT/Topics/` and appends WikiLinks to the *See Also* footers of
+>   existing notes across the vault. This one edits files you already have —
+>   it asks first, every time.
+>
+> Everything it writes is plain markdown in your own vault, so `git init` there
+> if you want an undo path. Nothing leaves the machine.
 
 ## Configure the vault path
 

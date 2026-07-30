@@ -9,8 +9,18 @@
     2. cp to ~/Library/LaunchAgents/
     3. launchctl load ~/Library/LaunchAgents/com.example.claude-stall-watcher.plist
 
+  Uninstall:
+    launchctl unload ~/Library/LaunchAgents/com.example.claude-stall-watcher.plist
+    rm ~/Library/LaunchAgents/com.example.claude-stall-watcher.plist
+
   The watcher is a no-op unless an overnight run is armed, so it is safe to
   leave loaded permanently.
+
+  Note that this is a persistent LaunchAgent: it runs every 5 minutes under your
+  user account, for as long as it stays loaded. It reads state files under
+  ~/.claude and can send you an iMessage; it does not touch your projects. Since
+  launchd will keep executing whatever is at that path, keep the script
+  owner-writable only (chmod 755) so nothing else can swap it out.
 -->
 <plist version="1.0">
 <dict>

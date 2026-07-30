@@ -157,7 +157,6 @@ def render(md_path: Path, pdf_path: Path) -> None:
             "--headless=new",
             "--disable-gpu",
             "--no-pdf-header-footer",
-            "--no-sandbox",
             f"--print-to-pdf={pdf_path}",
             f"file://{html_path.resolve()}",
         ]

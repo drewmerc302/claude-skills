@@ -143,7 +143,7 @@ The long tail. Small, but they're most of what daily use actually looks like.
 
 | Skill | What it does |
 |---|---|
-| [`session-log`](skills/session-log/SKILL.md) | Writes a structured session log to an Obsidian vault at conversation end, so decisions and rationale survive the context window. Paired with a `Stop` hook that won't let a substantive session end unlogged. |
+| [`session-log`](skills/session-log/SKILL.md) | Writes a structured session log to an Obsidian vault at conversation end, so decisions and rationale survive the context window. Paired with [a `Stop` hook](hooks/stop-session-log-guard.py) that won't let a substantive session end unlogged. Writes without prompting — see the scope banner in the skill for exactly what it touches. |
 | [`commit-push`](skills/commit-push/SKILL.md) | Commit and push, no PR. Writes the message to a session-unique file — never `-m`, never a shared `/tmp` path, both of which have corrupted commits for me in practice. |
 | [`screenshot`](skills/screenshot/SKILL.md) | Pulls the newest file from the screenshots folder into the conversation. Removes the drag-and-drop step from every visual debugging loop. |
 | [`rename-to-dir`](skills/rename-to-dir/SKILL.md) | Renames the session to the working directory's basename. Three lines. Makes session history navigable when you keep a dozen open. |
@@ -153,8 +153,9 @@ The long tail. Small, but they're most of what daily use actually looks like.
 ## Layout
 
 ```
-skills/           the skills themselves        → ~/.claude/skills/
-hooks/            limit-guard.sh (PostToolUse) → ~/.claude/hooks/
+skills/           the skills themselves         → ~/.claude/skills/
+hooks/            limit-guard.sh (PostToolUse)  → ~/.claude/hooks/
+                  stop-session-log-guard.py (Stop)
 scripts/          background helpers            → ~/.claude/scripts/
 agents/           a11y-reviewer subagent        → ~/.claude/agents/
 statusline/       rate-limit sensor             → ~/.claude/
@@ -222,6 +223,45 @@ For phone alerts and the stall watcher, see
 | `session-log` | An Obsidian vault (any markdown directory works) |
 
 ---
+
+## Security
+
+I scanned this repo with [NVIDIA SkillSpector](https://github.com/NVIDIA/skillspector)
+(LLM mode, v2.2.3) — the same tool the `skillspector` skill wraps. It returned
+**38 findings, CRITICAL, DO_NOT_INSTALL**. I read every one against the source. None
+are exploitable, and several are factually wrong about the code:
+
+- **11 × "unquoted variable expansion" in `rm -f`** — every one of those expansions is
+  quoted (`rm -f ~/.claude/park-state-"${CLAUDE_CODE_SESSION_ID:-main}".json`). The
+  variable is set by Claude Code, so reaching it already requires code execution.
+- **"AppleScript injection" in `imessage-self.sh`** — inverted. The values go through
+  `osascript`'s `argv` with a quoted heredoc, which is the injection-*safe* pattern;
+  nothing is interpolated into the script body.
+- **`subprocess` call in `md2pdf.py`** — array-arg, no `shell=True`, no `eval`/`exec`.
+- **5 × "session persistence" on the LaunchAgent** — accurate, and the documented
+  purpose of a LaunchAgent.
+
+Three findings were worth acting on, and are fixed:
+
+- The LaunchAgent shipped with install but no **uninstall** instructions.
+- `session-log`'s description promised "save a log" while the skill could also rewrite
+  footers across the vault. The description and a scope banner now disclose exactly what
+  it writes, and which part asks first.
+- Not flagged by the scanner, found while triaging it: `md2pdf.py` passed
+  `--no-sandbox` to headless Chrome. Unnecessary on a normal user account — verified
+  identical output without it, and removed.
+
+One finding is real but by design, and worth stating plainly: `park-sleeper.sh` writes
+instructions to stdout that land in the agent's context and steer its next turn
+("relaunch the sleeper, do nothing else"). That is structurally the same channel as a
+prompt injection — the difference is only that the script is mine and I launched it.
+If you install this, you are trusting that script the way you'd trust a shell alias.
+It's the one place in the repo where reading the source before running it genuinely
+matters.
+
+The broader lesson is the one the `skillspector` skill is built around: a scanner
+verdict is a place to look, not a conclusion. A CRITICAL that nobody traces to source
+is indistinguishable from noise.
 
 ## Known limitations
 
