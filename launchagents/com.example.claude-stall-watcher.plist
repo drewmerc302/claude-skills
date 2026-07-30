@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Runs the overnight stall watcher every 5 minutes.
+
+  Install:
+    1. Replace __HOME__ below with your home directory (launchd does not
+       expand ~ or $HOME in ProgramArguments).
+    2. cp to ~/Library/LaunchAgents/
+    3. launchctl load ~/Library/LaunchAgents/com.example.claude-stall-watcher.plist
+
+  The watcher is a no-op unless an overnight run is armed, so it is safe to
+  leave loaded permanently.
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.example.claude-stall-watcher</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>__HOME__/.claude/scripts/stall-watcher.sh</string>
+    </array>
+    <key>StartInterval</key>
+    <integer>300</integer>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>StandardErrorPath</key>
+    <string>/tmp/claude-stall-watcher.err</string>
+</dict>
+</plist>
