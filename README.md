@@ -231,15 +231,18 @@ I scanned this repo with [NVIDIA SkillSpector](https://github.com/NVIDIA/skillsp
 **38 findings, CRITICAL, DO_NOT_INSTALL**. I read every one against the source. None
 are exploitable, and several are factually wrong about the code:
 
-- **11 × "unquoted variable expansion" in `rm -f`** — every one of those expansions is
-  quoted (`rm -f ~/.claude/park-state-"${CLAUDE_CODE_SESSION_ID:-main}".json`). The
-  variable is set by Claude Code, so reaching it already requires code execution.
+- **5 × "unquoted variable expansion" in `rm -f`** (plus 2 more flagging `&&` chaining
+  on the same lines) — every one of those expansions is quoted:
+  `rm -f ~/.claude/park-state-"${CLAUDE_CODE_SESSION_ID:-main}".json`. The variable is
+  set by Claude Code, so reaching it already requires code execution.
 - **"AppleScript injection" in `imessage-self.sh`** — inverted. The values go through
   `osascript`'s `argv` with a quoted heredoc, which is the injection-*safe* pattern;
   nothing is interpolated into the script body.
 - **`subprocess` call in `md2pdf.py`** — array-arg, no `shell=True`, no `eval`/`exec`.
-- **5 × "session persistence" on the LaunchAgent** — accurate, and the documented
+- **6 × "session persistence" on the LaunchAgent** — accurate, and the documented
   purpose of a LaunchAgent.
+- **16 × a generic shell-command rule** firing on things like `git rev-parse`, `ls`,
+  and appending to a log file.
 
 Three findings were worth acting on, and are fixed:
 
