@@ -1,4 +1,5 @@
 .DS_Store
+graphify-out/
 *.swp
 __pycache__/
 *.pyc
