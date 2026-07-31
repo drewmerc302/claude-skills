@@ -90,9 +90,19 @@ subscription rate limit mid-run.
   where there's a runtime surface, behavior was actually exercised. Waking up to a
   green checklist over a broken tree is the failure mode this exists to prevent.
 - **Quality gates by diff shape** ([`gates.md`](skills/overnight/gates.md)):
-  best-practices always; security when the diff touches auth/crypto/IO/deserialization
-  or adds a dependency; a11y when it touches UI surfaces. Gates that *didn't* fire
-  get logged too — silent skipping reads as "reviewed" when it wasn't.
+  best-practices always; task-conformance on any multi-file step; security when the
+  diff touches auth/crypto/IO/deserialization or adds a dependency; a11y when it
+  touches UI surfaces. Gates that *didn't* fire get logged too — silent skipping
+  reads as "reviewed" when it wasn't.
+- **Task conformance as its own gate** ([`task-conformance-verifier`](agents/task-conformance-verifier.md)):
+  the other three grade the *diff*, and all three pass a clean, well-written
+  implementation of the wrong thing. This one gets the original task text verbatim —
+  never the lead's restatement or the worker's account — and its mandatory
+  `Not checked` section means unchecked never silently counts as passed.
+- **Run ledger** (`docs/overnight-gates/ledger.md`): baseline commit, one row per
+  atomic step with its declared write set, append-only attempt log. Gate reports
+  dedup findings; the ledger is what survives a park/resume, so a resumed lead
+  reconciles against `git status` instead of guessing.
 - **Explicit model routing**: every subagent dispatch passes `model` explicitly.
   Omitting it inherits the lead's tier, and overnight leads deliberately run on a
   premium model for coordination quality — so an omitted param silently bills every
@@ -157,7 +167,8 @@ skills/           the skills themselves         → ~/.claude/skills/
 hooks/            limit-guard.sh (PostToolUse)  → ~/.claude/hooks/
                   stop-session-log-guard.py (Stop)
 scripts/          background helpers            → ~/.claude/scripts/
-agents/           a11y-reviewer subagent        → ~/.claude/agents/
+agents/           a11y-reviewer,                → ~/.claude/agents/
+                  task-conformance-verifier
 statusline/       rate-limit sensor             → ~/.claude/
 launchagents/     stall-watcher plist           → ~/Library/LaunchAgents/
 ```
@@ -280,7 +291,12 @@ is indistinguishable from noise.
   but the 5h number needs a source edit.
 - **The gates depend on subagents I didn't vendor.** `gates.md` routes the
   best-practices gate to a third-party reviewer subagent; a stock substitute is named
-  inline. The a11y gate's subagent *is* included.
+  inline. The a11y and task-conformance subagents *are* included.
+- **The task-conformance gate and run ledger are new and unexercised.** Both were
+  added on top of a working stack rather than shaken out by a run that needed them.
+  The failure mode to watch for on first use is the gate passing everything with a
+  thin `Not checked` section — that means it's rubber-stamping, usually because it
+  was handed a restatement instead of the original spec text.
 - **No tests.** These are prompt + shell artifacts validated by daily use, not a test
   suite. The shell scripts are the part that most deserves one.
 

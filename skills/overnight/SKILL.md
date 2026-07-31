@@ -37,6 +37,19 @@ answers questions until morning.
      typecheck/build green. If a spec item can't be verified this way
      (blocked, no test surface), say so explicitly in the morning summary
      instead of marking it done.
+   - **Open the run ledger before the first delegated dispatch** —
+     `docs/overnight-gates/ledger.md`, schema in
+     `~/.claude/skills/overnight/gates.md`. Baseline commit at kickoff, one row
+     per atomic step, append-only attempt log. Reconcile it against `git
+     status` and `git log` after any park, compaction, or restart *before*
+     dispatching anything — a stale VERIFIED row ships broken work, which is
+     worse than a stale PENDING that merely gets redone.
+   - **Every implementation dispatch declares its WRITE SET** — the exact files
+     that agent may touch — and the ticket says so. Overlapping write sets
+     (including manifests, lockfiles, and generated project files) never run in
+     parallel: serialize, or give each a worktree. Declaring the set up front
+     prevents the collision; noticing a dirty tree only catches it after the
+     fact.
    - **Dispatch subagents with an explicit `model` param, always** — see
      `~/.claude/skills/overnight/gates.md` for the routing table. Never omit
      `model` on a subagent call: omitting it inherits *this session's* model,
@@ -52,14 +65,24 @@ answers questions until morning.
      dispatch them (plain parallel `Agent` calls, never the `Workflow` tool —
      see gates.md for why). Gate findings get fixed inline before the step is
      marked done; that's part of "verified," not a separate pass.
+   - **One of those gates asks a different question than the rest.** The
+     best-practices, security, and a11y gates grade the *diff*; all three pass
+     a clean, well-written implementation of the wrong thing. The
+     task-conformance gate (`task-conformance-verifier`, `model: "sonnet"`) is
+     handed the **original task text verbatim** — never your restatement, never
+     the worker's account — and grades the result against what was actually
+     asked. Its `Not checked` list is unverified territory: an item resting on
+     one of those lines does not get marked done.
 4. **Parking is not your job** — the limit-guard hook injects LIMIT GUARD
    messages; when one appears, follow ~/.claude/skills/overnight-park/SKILL.md.
    Never park preemptively without an injection.
 5. **On completion**:
    - iMessage: `~/.claude/scripts/imessage-self.sh "✅ Overnight task done: <one-line summary>"`
    - Disarm (session-scoped): `SID="${CLAUDE_CODE_SESSION_ID:-main}"; rm -f ~/.claude/overnight-armed-"$SID" ~/.claude/.stall-alerted-"$SID"`
-   - Write the morning summary in chat: what was done, judgment calls made,
-     gate findings (fixed and any explicitly skipped-with-reason), anything
+   - Write the morning summary in chat, built from the ledger's final state:
+     what was done, judgment calls made, gate findings (fixed and any
+     explicitly skipped-with-reason), every escalation taken, every
+     task-conformance `Not checked` item still outstanding, and anything
      needing review. Then write the session log per house rules.
 6. **If genuinely blocked** (missing info only the user has, unrecoverable
    error): iMessage `⚠️ Overnight run blocked: <why>`, disarm as in step 5,
