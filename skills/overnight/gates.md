@@ -62,23 +62,18 @@ in the morning summary — silent skipping reads as "reviewed" when it wasn't.
 ## Dispatch
 
 Fire triggered gates as parallel `Agent` tool calls (multiple tool_use blocks
-in one message) — **not** the `Workflow` tool. [Past incident: a `Workflow`
-dispatch burned 2.7M tokens / 75% of a weekly quota on a routine comparison
-task — wrong tool for this scale of work, and it requires its own explicit
-opt-in the user hasn't given for unattended runs.] Plain `Agent` calls in
-parallel are enough; the gates are independent of each other.
+in one message) — **not** the `Workflow` tool. [Past incident: Workflow burned
+2.7M tokens / 75% of a weekly quota comparing two guitars — wrong tool for
+this scale of task, and it requires its own explicit opt-in the user hasn't
+given for unattended runs.] Plain `Agent` calls in parallel are enough; the
+gates are independent of each other.
 
 ### Best-practices / conciseness
 
-Use `Agent` with a reviewer subagent whose output is severity-tagged and
-one-line-per-finding — feed findings straight into the fix loop, don't
-re-summarize them first.
-
-> Locally this routes to `subagent_type: "caveman:cavecrew-reviewer"` (from the
-> third-party `caveman` plugin, not vendored here). Any terse diff-reviewer
-> works; `subagent_type: "feature-dev:code-reviewer"` is a reasonable stock
-> substitute. Verbose reviewers defeat the purpose — the gate runs at every
-> atomic step, so its output cost compounds across a whole unattended run.
+Use `Agent` with `subagent_type: "caveman:cavecrew-reviewer"`. Point it at the
+diff for the current atomic step. Its output is already severity-tagged,
+one-line-per-finding, no praise — feed findings straight into the fix loop,
+don't re-summarize them first.
 
 ### Task conformance
 
@@ -91,17 +86,17 @@ worth anything; violating any one of them turns it into an expensive rubber stam
    what the step was meant to do, and never the implementing agent's account of
    what it did. If you paraphrase, the verifier grades your paraphrase and the
    independence is gone.
-2. **Gate a static, committed tree.** No agent mid-edit, `git status` stable
-   before you dispatch. After the verifier returns, `git status` must still be
-   clean and `HEAD` unchanged — any mutation during the run voids the verdict,
-   re-run it.
+2. **Gate a static, committed tree.** Same rule as non-negotiable #2: no agent
+   mid-edit, `git status` stable. After the verifier returns, `git status` must
+   still be clean and `HEAD` unchanged — any mutation during the run voids the
+   verdict, re-run it.
 3. **Grade the diff, not the narrative.** Its `Not checked` section is load-
    bearing output, not boilerplate — carry it into the morning summary verbatim.
    Items listed there are unverified, and a spec item resting on one of them
    cannot be marked done.
 
-If the project ships a verify script that takes a lock (exiting rather than
-racing a second caller), the verifier runs *that* script — do not fire it in
+If the project ships a locking verify script (Rhapsode's `verify.sh` exits 3
+rather than racing), the verifier runs *that* script — do not fire it in
 parallel with another gate that also invokes it, and do not defeat the lock.
 
 `FAIL` or `PASS_WITH_NOTES` findings go into the fix loop like any other gate's;
@@ -162,7 +157,7 @@ armed:    <ISO timestamp>
 ## Steps
 | # | atomic step | write set | status | attempts | gates | evidence |
 |---|---|---|---|---|---|---|
-| 1 | parse file header | src/format/header.rs, tests/header.rs | VERIFIED | 1 | bp✓ tc✓ | 3d1f9ac, 14 tests |
+| 1 | parse GP5 header | src/gp5/header.rs, tests/header.rs | VERIFIED | 1 | bp✓ tc✓ | 3d1f9ac, 14 tests |
 | 2 | wire CLI flag | src/cli.rs | IN_FLIGHT | 2 | — | — |
 
 ## Attempts (append-only)
@@ -171,9 +166,8 @@ armed:    <ISO timestamp>
 ```
 
 Statuses: `PENDING` → `IN_FLIGHT` → `IMPLEMENTED` → `VERIFIED` | `BLOCKED`.
-`IMPLEMENTED` is not `VERIFIED` — the SKILL.md verified-not-implemented gate
-lives in this column, so nothing reaches `VERIFIED` without gate evidence in the
-evidence cell.
+`IMPLEMENTED` is not `VERIFIED` — the SKILL.md hard gate lives in this column,
+so nothing reaches `VERIFIED` without gate evidence in the evidence cell.
 
 Three rules:
 
@@ -181,14 +175,21 @@ Three rules:
   names the files that agent may touch, and the ticket says so explicitly. Two
   dispatches whose write sets overlap — including manifests, lockfiles, and
   generated project files — do not run in parallel: serialize them, or give
-  each a git worktree. Declaring the write set up front *prevents* the
-  collision; checking `git status` for a stable tree only catches it afterward,
-  once a run already has to be discarded.
+  each a git worktree. This is the preventive form of non-negotiable #2, which
+  currently only catches the collision after a run has to be discarded.
 - **Bound the retries.** Two failed attempts at a step by the same tier, then
   either escalate one tier (with the escalation journaled as its own attempt
   row) or take it over as the lead. Never a third identical retry on unchanged
   input — that is the "spin retrying the same failure all night" failure mode
   with a counter attached.
+- **Roll back before retrying.** A failed attempt's half-finished edits do not
+  survive into the next attempt: before dispatching attempt N+1, restore the
+  step's declared write set to HEAD (`git checkout HEAD -- <write-set files>`,
+  plus delete untracked files the attempt created inside its write set) and
+  journal the rollback in the attempt row. Scope the restore to the write set —
+  a bare `git reset --hard` is only safe when no other step is IN_FLIGHT,
+  because it would also destroy a parallel agent's uncommitted work. Attempt
+  N+1 starts from the same tree attempt N did, or its failure teaches nothing.
 - **Reconcile before dispatching anything after a park, compaction, or
   restart.** Read the ledger, then check it against `git status`, `git log
   --oneline <baseline>..HEAD`, and any still-running background jobs. A stale

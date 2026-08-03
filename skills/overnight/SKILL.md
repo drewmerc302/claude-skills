@@ -21,9 +21,11 @@ answers questions until morning.
      refresh it as soon as work starts).
 2. **Arm the stall watcher** — session-scoped, single Bash call:
    ```
-   SID="${CLAUDE_CODE_SESSION_ID:-main}"
-   date +%s > ~/.claude/overnight-armed-"$SID" && rm -f ~/.claude/.stall-alerted-"$SID"
+   ~/.claude/scripts/arm-overnight.sh
    ```
+   Writes the 3-line armed file (epoch / lead pid / run cwd) that lets the
+   watcher's hard-death branch revive a crashed lead instead of only
+   alerting, and clears this session's stale alert/revive flags.
 3. **Restate the task** in 3-6 bullets (goal, definition of done, planned
    approach). Then execute autonomously:
    - No questions mid-run. Make reasonable calls; log each judgment call in a
@@ -47,9 +49,8 @@ answers questions until morning.
    - **Every implementation dispatch declares its WRITE SET** — the exact files
      that agent may touch — and the ticket says so. Overlapping write sets
      (including manifests, lockfiles, and generated project files) never run in
-     parallel: serialize, or give each a worktree. Declaring the set up front
-     prevents the collision; noticing a dirty tree only catches it after the
-     fact.
+     parallel: serialize, or give each a worktree. This is the preventive form
+     of non-negotiable 2 below.
    - **Dispatch subagents with an explicit `model` param, always** — see
      `~/.claude/skills/overnight/gates.md` for the routing table. Never omit
      `model` on a subagent call: omitting it inherits *this session's* model,
@@ -78,7 +79,7 @@ answers questions until morning.
    Never park preemptively without an injection.
 5. **On completion**:
    - iMessage: `~/.claude/scripts/imessage-self.sh "✅ Overnight task done: <one-line summary>"`
-   - Disarm (session-scoped): `SID="${CLAUDE_CODE_SESSION_ID:-main}"; rm -f ~/.claude/overnight-armed-"$SID" ~/.claude/.stall-alerted-"$SID"`
+   - Disarm (session-scoped): `SID="${CLAUDE_CODE_SESSION_ID:-main}"; rm -f ~/.claude/overnight-armed-"$SID" ~/.claude/.stall-alerted-"$SID" ~/.claude/.revive-attempted-"$SID"`
    - Write the morning summary in chat, built from the ledger's final state:
      what was done, judgment calls made, gate findings (fixed and any
      explicitly skipped-with-reason), every escalation taken, every
@@ -88,3 +89,56 @@ answers questions until morning.
    error): iMessage `⚠️ Overnight run blocked: <why>`, disarm as in step 5,
    write a summary of progress + the blocker, stop. Do not spin retrying the
    same failure all night.
+
+## Non-negotiables
+
+Each of these cost real time in the Rhapsode V2 M2 run (2026-07-30): roughly
+**1h45m of wall clock lost to orchestration, none of it to the code.** They are
+listed as rules rather than advice because "be more careful" demonstrably did
+not work — the issue-closing failure below was diagnosed, written up in memory,
+and then reproduced by the same session hours later.
+
+1. **Background work and its wake mechanism ship in the SAME message.**
+   `nohup … &` followed by "I'll poll" is not a plan; nothing re-invokes you.
+   Three ~25-minute stalls came from exactly this, each surfacing to the user
+   as a stall-watcher text rather than a result. Arm a `Monitor` (or a
+   `run_in_background` waiter that EXITS on completion) in the same response
+   that starts the work. Filter on failure signatures too, not just success —
+   a success-only filter is silent through a crash, and silence looks identical
+   to "still running."
+
+2. **Gate a static tree.** `xcodegen generate` is step 1, so anything edited
+   after it was never built. Confirm no agent is mid-edit and `git status` is
+   stable before starting, and do not edit while a gate runs. A run that
+   reported ALL GREEN having never built a new test file had to be discarded.
+   Declared write sets (step 3) are the preventive half of this rule; this
+   check is the detective half — keep both, they fail differently.
+
+3. **Never run two gates at once**, and never gate-chain with a `pgrep` guard —
+   a wrapper whose own argv contains the script name matches *itself*, waits
+   forever, then releases into a run already in flight. `verify.sh` now takes a
+   real lock and exits 3 rather than racing; do not defeat it.
+
+4. **A GREEN verdict is not evidence that a test ran.** Confirm new tests
+   executed BY NAME (`gate-metrics.csv`, or `xcrun xcresulttool get test-results
+   tests`). A full gate with `ABS_FIXTURE_URL` unset skips both UI smokes;
+   `verify.sh` now says PARTIAL GREEN, but check the tier you actually ran.
+
+5. **Close issues at each milestone commit, not in an end-of-run sweep.**
+   `git log -1 --pretty=%B <sha> | grep -oE "Refs #.*"`, then
+   `gh issue comment N --body-file <f>` and `gh issue close N` (`--comment` gets
+   blocked; the house rule forbids `--body`). Leave open anything with residual
+   scope or a pending product decision, and say why in the comment — "closed"
+   should mean "nothing left here," not "I committed something."
+
+6. **Corroborate a LIMIT GUARD before acting on it.** The hook faithfully
+   reports `~/.claude/usage-cache.json`, but the cache itself can be wrong — one
+   injection claimed 88% weekly against an actual 1%, and acting on it produced
+   a spurious park and a false iMessage to the user. Read the cache, sanity-check
+   5h against 7d for coherence, and never send a user-visible message on a single
+   unverified reading.
+
+7. **Verify a claim before asserting it.** Two false accusations against the
+   tooling in one run traced to a case-sensitive grep and a CSV query that
+   filtered to attempt 1 only. When agents contradict a brief, they have been
+   right every time so far — the code is the reliable source, the brief is not.

@@ -21,8 +21,11 @@ REMAIN=$((END - NOW))
 
 if [ "$REMAIN" -le "$TICK" ]; then
     # Final stretch — sleep the rest of the way and declare reset.
+    # caffeinate -is: a parked lead makes no API turns, so Claude Code's own
+    # 5-min power assertions lapse and an idle MacBook sleeps mid-park,
+    # freezing this timer. Hold an assertion for exactly the sleep window.
     while [ "$(date +%s)" -lt "$END" ]; do
-        sleep 60
+        caffeinate -is sleep 60
     done
 
     # Post-reset housekeeping:
@@ -35,7 +38,7 @@ if [ "$REMAIN" -le "$TICK" ]; then
 
     echo "WINDOW RESET at $(date '+%H:%M'). Fresh 5h window active. Resume the parked task now — continue the implementation exactly where the transcript left off. Do not re-plan from scratch."
 else
-    sleep "$TICK"
+    caffeinate -is sleep "$TICK"
     MIN_LEFT=$(( (END - $(date +%s)) / 60 ))
     echo "PARK HEARTBEAT: still parked, ~${MIN_LEFT} min until reset. Relaunch immediately: ~/.claude/scripts/park-sleeper.sh ${RESET} (Bash, run_in_background:true). Do not do anything else this turn — no status checks, no re-reading state, just relaunch and end the turn."
 fi
