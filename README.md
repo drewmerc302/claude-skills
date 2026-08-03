@@ -153,7 +153,7 @@ The long tail. Small, but they're most of what daily use actually looks like.
 
 | Skill | What it does |
 |---|---|
-| [`session-log`](skills/session-log/SKILL.md) | Writes a structured session log to an Obsidian vault at conversation end, so decisions and rationale survive the context window. Paired with [a `Stop` hook](hooks/stop-session-log-guard.py) that won't let a substantive session end unlogged. Writes without prompting — see the scope banner in the skill for exactly what it touches. |
+| [`session-log` → claude-second-brain](https://github.com/drewmerc302/claude-second-brain) | Session logging and its `Stop`/`SessionStart` hooks moved to their own repo: a self-installing Obsidian "second brain" (vault scaffold, session-log skill, cross-platform Node hooks, Claude-driven installer). I run what it ships, installed the same way anyone else would. |
 | [`commit-push`](skills/commit-push/SKILL.md) | Commit and push, no PR. Writes the message to a session-unique file — never `-m`, never a shared `/tmp` path, both of which have corrupted commits for me in practice. |
 | [`screenshot`](skills/screenshot/SKILL.md) | Pulls the newest file from the screenshots folder into the conversation. Removes the drag-and-drop step from every visual debugging loop. |
 | [`rename-to-dir`](skills/rename-to-dir/SKILL.md) | Renames the session to the working directory's basename. Three lines. Makes session history navigable when you keep a dozen open. |
@@ -165,7 +165,6 @@ The long tail. Small, but they're most of what daily use actually looks like.
 ```
 skills/           the skills themselves         → ~/.claude/skills/
 hooks/            limit-guard.sh (PostToolUse)  → ~/.claude/hooks/
-                  stop-session-log-guard.py (Stop)
 scripts/          background helpers            → ~/.claude/scripts/
 agents/           a11y-reviewer,                → ~/.claude/agents/
                   task-conformance-verifier
@@ -221,7 +220,6 @@ For phone alerts and the stall watcher, see
 | Variable | Used by | Purpose |
 |---|---|---|
 | `IMSG_TARGET` | `scripts/imessage-self.sh` | iMessage recipient for alerts. Unset → local notification only. |
-| `CLAUDE_VAULT` | `session-log` | Path to your Obsidian vault. |
 | `SKILLSPECTOR_REPO` | `skillspector` | Local clone of NVIDIA/skillspector. |
 
 ### External dependencies
@@ -231,7 +229,6 @@ For phone alerts and the stall watcher, see
 | `overnight` | `jq`, macOS (launchd + Messages), a Claude subscription exposing `rate_limits` |
 | `skillspector` | Docker, a clone of NVIDIA/skillspector, an Anthropic API key for the LLM pass |
 | `md2pdf` | `python3` + `markdown`, Chrome or Chromium |
-| `session-log` | An Obsidian vault (any markdown directory works) |
 
 ---
 
@@ -260,7 +257,8 @@ Three findings were worth acting on, and are fixed:
 - The LaunchAgent shipped with install but no **uninstall** instructions.
 - `session-log`'s description promised "save a log" while the skill could also rewrite
   footers across the vault. The description and a scope banner now disclose exactly what
-  it writes, and which part asks first.
+  it writes, and which part asks first. (The skill has since moved to
+  [claude-second-brain](https://github.com/drewmerc302/claude-second-brain).)
 - Not flagged by the scanner, found while triaging it: `md2pdf.py` passed
   `--no-sandbox` to headless Chrome. Unnecessary on a normal user account — verified
   identical output without it, and removed.
