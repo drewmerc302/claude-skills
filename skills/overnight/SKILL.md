@@ -78,6 +78,13 @@ answers questions until morning.
    messages; when one appears, follow ~/.claude/skills/overnight-park/SKILL.md.
    Never park preemptively without an injection.
 5. **On completion**:
+   - **Sweep for orphaned subagents FIRST**: `~/.claude/scripts/orphan-agents.sh 15`,
+     and `TaskStop` each one it names. A named subagent that delivered its result
+     by SendMessage does not exit — it parks awaiting a reply, and the task panel
+     keeps counting wall-clock at it. On 2026-08-06 six sat that way for over four
+     hours. Do this BEFORE writing the summary, because orphans and lost verdicts
+     have the same cause: any row still reading "in flight" against a gate that
+     actually finished is unverified, not verified. See `gates.md`.
    - iMessage: `~/.claude/scripts/imessage-self.sh "✅ Overnight task done: <one-line summary>"`
    - Disarm (session-scoped): `SID="${CLAUDE_CODE_SESSION_ID:-main}"; rm -f ~/.claude/overnight-armed-"$SID" ~/.claude/.stall-alerted-"$SID" ~/.claude/.revive-attempted-"$SID"`
    - Write the morning summary in chat, built from the ledger's final state:

@@ -120,12 +120,54 @@ focus order intent, alt-text quality), and explicitly flags in its own output wh
 tooling exists and the check ran LLM-only. Feed its findings straight into the fix loop, same as
 the best-practices gate.
 
+## Gates RETURN their verdict. They never message it, and they are never named.
+
+Spawn every gate WITHOUT a `name`, and have it deliver findings as its final
+text (or a `schema` object). Do not tell a gate to "report to the team lead."
+
+Both halves of that matter, and violating it cost a full run on 2026-08-06:
+
+* **A named subagent is an addressable teammate.** It sends its report via
+  SendMessage, ends its turn, and then *parks awaiting a reply that never
+  comes*. It does not exit. Five finished gates sat at `in_process_teammate`
+  for 4h15m while the task panel counted wall-clock at them, which reads
+  exactly like work in progress. An unnamed subagent terminates when it
+  returns, and cannot leak this way.
+* **A message is not an artifact.** Findings delivered into the lead's context
+  live only in that context — and the next compaction throws them away. That
+  run lost four gate verdicts to compaction and carried six ledger rows still
+  reading "gates in flight" hours after every gate had finished. The findings
+  happened to be already-fixed. That was luck, not a process.
+
+**Consume, then stop.** The moment a gate's verdict is read and its ledger row
+updated, `TaskStop` it. Do not leave it parked "in case there's a follow-up" —
+dispatch a fresh one, which is cheap; an orphan is not.
+
+**Sweep before the morning summary**, and after any park or compaction:
+
+```
+~/.claude/scripts/orphan-agents.sh 15
+```
+
+It flags subagents whose transcript has been idle N minutes while the panel
+still shows them running. Transcript mtime is the evidence; the panel's timer
+is time-since-spawn and proves nothing. A run that ends with orphans on the
+panel has almost certainly also lost verdicts — check the ledger for rows still
+saying "in flight" before trusting any of them.
+
 ## Report files and dedup
 
 Each gate that fires writes a short report to
 `docs/overnight-gates/<gate>-<atomic-step-slug>.md` in the repo being worked
 on (create the dir if missing). Keep it compressed — findings list plus
-fixed/skipped status, not prose. This is what makes resume-after-park cheap:
+fixed/skipped status, not prose.
+
+**This file is the deliverable** — the gate writes it and then returns the path
+plus a one-line verdict. A gate that returned findings but wrote no file has not
+run to completion; on 2026-08-06 four gates reported and `docs/overnight-gates/`
+contained nothing but ledgers.
+
+Writing the file is also what makes resume-after-park cheap:
 a fresh subagent gets briefed from this file instead of re-reading the full
 diff and re-deriving findings.
 

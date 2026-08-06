@@ -40,18 +40,20 @@ flowchart TB
         SW["stall-watcher.sh<br/>launchd, every 5 min"]
         PS["park-sleeper.sh<br/>55-min heartbeat ticks"]
         IM["imessage-self.sh<br/>alert to phone"]
+        OA["orphan-agents.sh<br/>transcript-idle sweep"]
     end
 
     SL -->|"usage-cache.json"| LG
     LG -->|"injects LIMIT GUARD<br/>into context"| PK
     OV -->|"arms"| SW
+    OV -->|"sweeps before summary"| OA
     PK -->|"launches"| PS
     PS -->|"PARK HEARTBEAT / WINDOW RESET"| PK
     SW --> IM
     PK --> IM
 ```
 
-Three design constraints drove that shape:
+Four design constraints drove that shape:
 
 **The hook can't ask Claude to stop — it can only inject text.** So `limit-guard.sh`
 writes a `LIMIT GUARD` message naming the exact skill, mode, and reset epoch, and
@@ -70,6 +72,22 @@ re-ingests its full transcript. Doing that to several at once once cost ~30% of 
 5-hour window. So the park protocol treats stopped agents as abandoned: their
 findings already live in the lead's context and in `docs/overnight-gates/`, and
 resume spawns fresh small-context agents briefed from those files.
+
+**A finished subagent does not necessarily stop.** The line above assumes findings
+reach `docs/overnight-gates/`; when they don't, both halves of that assumption fail
+at once. A subagent spawned with a `name` is an addressable teammate, so if it
+delivers its report via SendMessage and ends its turn it *parks awaiting a reply
+that never comes* — it never exits, and the task panel keeps counting wall-clock at
+it, which is indistinguishable from work in progress. Meanwhile its findings exist
+only in the lead's context, which the next compaction discards. On 2026-08-06 six
+agents sat orphaned for over four hours while the run's ledger still showed their
+gates "in flight" and `docs/overnight-gates/` held nothing but ledgers.
+
+So gates are spawned **unnamed** and **return** their verdict (unnamed subagents
+terminate on return), the report *file* is the deliverable rather than the message,
+and `orphan-agents.sh` sweeps before the morning summary. It compares each
+subagent transcript's mtime against now — transcript activity is evidence, the
+panel's since-spawn timer is not.
 
 State files are keyed by `$CLAUDE_CODE_SESSION_ID` throughout, so concurrent
 overnight runs in different projects don't clobber each other's park state — an
