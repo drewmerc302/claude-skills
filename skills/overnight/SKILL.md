@@ -1,6 +1,6 @@
 ---
 name: overnight
-description: Kick off an unattended overnight implementation run with rate-limit protection. Use when the user invokes /overnight <task>, or says "run this overnight" / "work on this while I sleep". Pre-flights weekly quota, arms the stall watcher, then executes the task autonomously; the limit-guard hook handles 5h parking automatically.
+description: Kick off an unattended overnight implementation run with rate-limit protection. Use when the user invokes /overnight [task], or says "run this overnight" / "work on this while I sleep". Pre-flights weekly quota, arms the stall watcher, then executes the task autonomously; the limit-guard hook handles 5h parking automatically.
 ---
 
 # Overnight Run Kickoff
@@ -30,6 +30,15 @@ answers questions until morning.
    approach). Then execute autonomously:
    - No questions mid-run. Make reasonable calls; log each judgment call in a
      running "morning review" list to include in the final summary.
+   - **A message with no tool call ends the run.** Nothing re-invokes you
+     until the stall watcher texts the user. Opus/Sonnet 5.5 end turns early
+     in four recognizable ways, and none is allowed here: (1) a progress
+     summary that announces the next step instead of taking it; (2) an offer
+     to continue "unless you'd prefer otherwise"; (3) a list of decisions for
+     the user when none of them blocks the remaining work; (4) deciding a
+     milestone or a long turn is a good place to report. Status notes are
+     fine, but put them in the same message as the next tool call. The only
+     stops are step 5 (done) and step 6 (blocked).
    - Verify as you go (build/test) — morning-you reviewing a broken tree is
      the failure mode.
    - **Hard gate: do not mark any item done until it's verified**, not just
@@ -51,6 +60,27 @@ answers questions until morning.
      (including manifests, lockfiles, and generated project files) never run in
      parallel: serialize, or give each a worktree. This is the preventive form
      of non-negotiable 2 below.
+   - **Every implementation brief ends with this paragraph, verbatim.** Sonnet
+     5.5 adds tests, docs, and small supporting files nobody asked for (at
+     every effort level), which silently breaks the declared write set; at
+     lower effort it can also stop to check in before the work is done, or
+     report a change done without running a check. Nobody answers a
+     subagent's check-in overnight, so an early stop is a lost step.
+     > Keep working until everything in this brief is done. Stop early only
+     > if you can't go on without information you don't have, or before a
+     > risky or irreversible step; then say exactly what is blocking you.
+     > When the work in this brief is done and checked, stop and report. Don't
+     > add features, tests, files, docs or refactors the brief didn't ask for,
+     > and touch nothing outside your write set; if you think one would help,
+     > say so in your report instead. When you change code that can be run,
+     > built, or type-checked, run a real check that exercises the change
+     > before reporting it done: the project's tests, type-checker, or build,
+     > or the changed command itself. A syntax-only check, or a check command
+     > that failed to start, does not count. If only the project's declared
+     > dependencies are missing, install them with its own package manager
+     > and lockfile, never via sudo or the system package manager. If no real
+     > check can run, say which one you did not run and why instead of
+     > reporting the change as done.
    - **Dispatch subagents with an explicit `model` param, always** — see
      `~/.claude/skills/overnight/gates.md` for the routing table. Never omit
      `model` on a subagent call: omitting it inherits *this session's* model,

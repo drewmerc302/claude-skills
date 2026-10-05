@@ -8,6 +8,15 @@ Not every checkpoint needs every gate. Running all four on every commit is
 expensive and mostly redundant — a one-line copy change doesn't need a
 security review. Route by what the diff actually touches.
 
+## Contents
+
+- Model routing
+- Gate trigger rules
+- Dispatch (best-practices, task conformance, security, a11y)
+- Gates RETURN their verdict
+- Report files and dedup
+- Run ledger
+
 ## Model routing
 
 **Every subagent `Agent` call in an overnight run passes an explicit `model`
